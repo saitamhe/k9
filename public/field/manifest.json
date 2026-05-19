@@ -1,0 +1,20 @@
+{
+    "name": "K9 Field — Rastreo SAR",
+    "short_name": "K9 Field",
+    "description": "Aplicacion de campo para guias de perros SAR. Funciona offline contra la base LoRa T3.",
+    "lang": "es",
+    "start_url": "/field",
+    "scope": "/field/",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#0f172a",
+    "theme_color": "#0f172a",
+    "icons": [
+        {
+            "src": "/field/icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}
