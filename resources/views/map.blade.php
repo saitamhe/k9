@@ -70,6 +70,19 @@
         <aside id="sidebar">
             <h1>RASTREO K9 SAR</h1>
 
+            @auth
+                <div style="background:#262626;border-left:4px solid #06b6d4;padding:8px 10px;border-radius:4px;margin-bottom:12px;font-size:11px;display:flex;justify-content:space-between;align-items:center;">
+                    <span>
+                        <b style="color:#fff;">{{ auth()->user()->name }}</b>
+                        <span style="color:#888;">· {{ auth()->user()->role }}</span>
+                    </span>
+                    <form method="POST" action="{{ route('logout') }}" style="margin:0;">
+                        @csrf
+                        <button type="submit" style="background:none;border:none;color:#06b6d4;cursor:pointer;font-size:11px;padding:0;">salir</button>
+                    </form>
+                </div>
+            @endauth
+
             <h2>Base de operaciones</h2>
             <div class="base-card">
                 <div class="name" id="base-name">{{ $base['name'] }}</div>

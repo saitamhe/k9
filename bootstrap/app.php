@@ -17,6 +17,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/sync/batch',
             'api/waypoints/*/photo',
         ]);
+
+        // Donde redirigir cuando no hay sesion autenticada.
+        $middleware->redirectGuestsTo(fn () => route('login'));
+
+        // Alias para middleware de rol admin.
+        $middleware->alias([
+            'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
