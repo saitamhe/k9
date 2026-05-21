@@ -1,0 +1,27 @@
+{
+    "name": "Rastreo K9 SAR",
+    "short_name": "K9 SAR",
+    "description": "Sistema de rastreo K9 SAR · mapa en vivo, operativos de búsqueda y telemetría LoRa.",
+    "lang": "es",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#0a0a0a",
+    "theme_color": "#0a0a0a",
+    "icons": [
+        {
+            "src": "/icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-maskable.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "maskable"
+        }
+    ],
+    "categories": ["utilities", "navigation"]
+}
