@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\FieldController;
 use App\Http\Controllers\MapController;
+use App\Http\Controllers\SearchSessionController;
 use Illuminate\Support\Facades\Route;
 
 // --- Auth (publico) ---
@@ -16,6 +17,15 @@ Route::post('/logout', [AuthController::class, 'logout'])   ->name('logout')->mi
 Route::middleware('auth')->group(function () {
     Route::get('/',      [MapController::class, 'index'])->name('map');
     Route::get('/field', [FieldController::class, 'index'])->name('field');
+
+    // Operativos / sesiones de busqueda.
+    // OJO: rutas estaticas antes de las dinamicas con {session}.
+    Route::get ('/sessions',                  [SearchSessionController::class, 'index']) ->name('sessions.index');
+    Route::get ('/sessions/create',           [SearchSessionController::class, 'create'])->name('sessions.create');
+    Route::post('/sessions',                  [SearchSessionController::class, 'store']) ->name('sessions.store');
+    Route::get ('/sessions/{session}',        [SearchSessionController::class, 'show'])  ->name('sessions.show');
+    Route::post('/sessions/{session}/close',  [SearchSessionController::class, 'close']) ->name('sessions.close');
+    Route::post('/sessions/{session}/notes',  [SearchSessionController::class, 'addNote'])->name('sessions.notes.add');
 });
 
 // --- API consumida por el JS del mapa (necesita sesion web) ---

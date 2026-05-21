@@ -83,6 +83,67 @@
                 </div>
             @endauth
 
+            @if (session('flash'))
+                <div style="background:#1f3a1f;border-left:3px solid #10b981;padding:8px 10px;margin-bottom:12px;font-size:11px;border-radius:3px;color:#a7f3d0;">
+                    {{ session('flash') }}
+                </div>
+            @endif
+
+            <h2>Operativo actual</h2>
+            @if ($activeSession)
+                <div style="background:#262626;border-left:4px solid #f59e0b;padding:10px 12px;margin-bottom:12px;border-radius:4px;">
+                    <div style="font-weight:600;color:#fff;font-size:13px;margin-bottom:4px;">{{ $activeSession->name }}</div>
+                    <div style="font-size:11px;color:#aaa;">
+                        Inició {{ $activeSession->started_at->format('d M H:i') }}
+                        @if ($activeSession->creator) · por {{ $activeSession->creator->name }} @endif
+                    </div>
+                    @if ($activeSession->description)
+                        <div style="font-size:11px;color:#ccc;margin-top:6px;line-height:1.4;">{{ $activeSession->description }}</div>
+                    @endif
+
+                    <div style="margin-top:10px;display:flex;gap:6px;">
+                        <a class="btn" style="flex:1;text-align:center;text-decoration:none;" href="{{ route('sessions.show', $activeSession) }}">Ver detalle</a>
+                        @if (auth()->user()->isAdmin())
+                            <form method="POST" action="{{ route('sessions.close', $activeSession) }}" style="flex:1;margin:0;" onsubmit="return confirm('¿Cerrar operativo {{ $activeSession->name }}?');">
+                                @csrf
+                                <button class="btn" style="width:100%;background:#7f1d1d;border-color:#991b1b;color:#fff;">Cerrar</button>
+                            </form>
+                        @endif
+                    </div>
+
+                    <details style="margin-top:10px;font-size:11px;">
+                        <summary style="cursor:pointer;color:#06b6d4;">Notas ({{ $activeSession->notes->count() }})</summary>
+                        <div style="max-height:160px;overflow-y:auto;margin-top:6px;">
+                            @forelse ($activeSession->notes as $n)
+                                <div style="padding:6px 8px;background:#1a1a1a;border-radius:3px;margin-bottom:4px;">
+                                    <div style="color:#ddd;line-height:1.4;">{{ $n->body }}</div>
+                                    <div style="color:#666;font-size:10px;margin-top:3px;">
+                                        {{ $n->author?->name ?? 'sistema' }} · {{ $n->created_at->format('d M H:i') }}
+                                    </div>
+                                </div>
+                            @empty
+                                <em style="color:#666;">Sin notas todavía.</em>
+                            @endforelse
+                        </div>
+                        @if (auth()->user()->isAdmin())
+                            <form method="POST" action="{{ route('sessions.notes.add', $activeSession) }}" style="margin-top:6px;">
+                                @csrf
+                                <textarea name="body" rows="2" required placeholder="Nueva nota..." style="width:100%;background:#1a1a1a;color:#eee;border:1px solid #333;border-radius:3px;padding:6px;font-size:11px;font-family:inherit;resize:vertical;"></textarea>
+                                <button type="submit" class="btn" style="margin-top:4px;">Añadir nota</button>
+                            </form>
+                        @endif
+                    </details>
+                </div>
+            @else
+                <div style="background:#262626;padding:10px 12px;margin-bottom:12px;border-radius:4px;font-size:12px;color:#888;">
+                    Sin operativo activo. Las posiciones se siguen guardando pero no quedan asociadas a un operativo.
+                    @if (auth()->user()->isAdmin())
+                        <a class="btn" style="margin-top:8px;text-align:center;text-decoration:none;" href="{{ route('sessions.create') }}">Iniciar operativo nuevo</a>
+                    @endif
+                </div>
+            @endif
+            <a class="btn" style="text-align:center;text-decoration:none;margin-bottom:14px;" href="{{ route('sessions.index') }}">Histórico de operativos</a>
+
             <h2>Base de operaciones</h2>
             <div class="base-card">
                 <div class="name" id="base-name">{{ $base['name'] }}</div>
