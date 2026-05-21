@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dog;
+use App\Models\SearchSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class PositionController extends Controller
 {
@@ -68,6 +70,7 @@ class PositionController extends Controller
         );
 
         $pos = $dog->positions()->create([
+            'search_session_id' => $this->currentSessionId(),
             'seq'         => $data['seq']   ?? 0,
             'lat'         => $data['lat'],
             'lon'         => $data['lon'],
@@ -86,6 +89,18 @@ class PositionController extends Controller
             'dog_id'      => $dog->id,
             'position_id' => $pos->id,
         ]);
+    }
+
+    /**
+     * Devuelve el id de la sesion activa o null. Cacheado 5s para no pegarle a la
+     * BD cada paquete LoRa. El cache lo invalida SearchSessionController al
+     * iniciar/cerrar operativo via Cache::forget('rastreo.active_session_id').
+     */
+    private function currentSessionId(): ?int
+    {
+        return Cache::remember('rastreo.active_session_id', 5, function () {
+            return SearchSession::active()->latest('started_at')->value('id');
+        });
     }
 
     /**

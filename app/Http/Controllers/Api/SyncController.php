@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Dog;
 use App\Models\Position;
+use App\Models\SearchSession;
 use App\Models\Waypoint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -60,8 +62,9 @@ class SyncController extends Controller
 
         $posSynced = [];
         $wpSynced  = [];
+        $activeSessionId = $this->currentSessionId();
 
-        DB::transaction(function () use ($data, &$posSynced, &$wpSynced) {
+        DB::transaction(function () use ($data, $activeSessionId, &$posSynced, &$wpSynced) {
             // ---- Posiciones ----
             // Agrupamos por node_id para resolver/crear el Dog una sola vez por nodo.
             $byNode = collect($data['positions'] ?? [])->groupBy('node_id');
@@ -73,7 +76,8 @@ class SyncController extends Controller
 
                 $now = now();
                 $upserts = $rows->map(fn ($r) => [
-                    'dog_id'      => $dog->id,
+                    'dog_id'            => $dog->id,
+                    'search_session_id' => $activeSessionId,
                     'seq'         => (int) $r['seq'],
                     'lat'         => $r['lat'],
                     'lon'         => $r['lon'],
@@ -92,7 +96,7 @@ class SyncController extends Controller
                 Position::upsert(
                     $upserts,
                     ['dog_id', 'seq'],
-                    ['lat','lon','alt_m','speed_mps','heading_deg','epoch_s','flags','rssi','snr','received_at','updated_at']
+                    ['lat','lon','alt_m','speed_mps','heading_deg','epoch_s','flags','rssi','snr','received_at','updated_at','search_session_id']
                 );
 
                 foreach ($rows as $r) {
@@ -105,6 +109,7 @@ class SyncController extends Controller
                 Waypoint::updateOrCreate(
                     ['uuid' => $w['uuid']],
                     [
+                        'search_session_id' => $activeSessionId,
                         'session_id'  => $w['session_id'] ?? null,
                         'type'        => $w['type'],
                         'lat'         => $w['lat'],
@@ -152,5 +157,12 @@ class SyncController extends Controller
             'photo_path' => $path,
             'url'        => Storage::disk('public')->url($path),
         ]);
+    }
+
+    private function currentSessionId(): ?int
+    {
+        return Cache::remember('rastreo.active_session_id', 5, function () {
+            return SearchSession::active()->latest('started_at')->value('id');
+        });
     }
 }

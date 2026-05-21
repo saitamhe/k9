@@ -4,13 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Waypoint extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'uuid', 'session_id', 'type', 'lat', 'lon', 'note', 'photo_path', 'recorded_at',
+        'uuid', 'search_session_id', 'session_id', 'type',
+        'lat', 'lon', 'note', 'photo_path', 'recorded_at',
     ];
 
     protected $casts = [
@@ -27,4 +29,9 @@ class Waypoint extends Model
         'rest',           // descanso / hidratacion del binomio
         'other',
     ];
+
+    public function session(): BelongsTo
+    {
+        return $this->belongsTo(SearchSession::class, 'search_session_id');
+    }
 }

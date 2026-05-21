@@ -11,8 +11,8 @@ class Position extends Model
     use HasFactory;
 
     protected $fillable = [
-        'dog_id', 'seq', 'lat', 'lon', 'alt_m', 'speed_mps', 'heading_deg',
-        'epoch_s', 'flags', 'rssi', 'snr', 'received_at',
+        'dog_id', 'search_session_id', 'seq', 'lat', 'lon', 'alt_m', 'speed_mps',
+        'heading_deg', 'epoch_s', 'flags', 'rssi', 'snr', 'received_at',
     ];
 
     protected $casts = [
@@ -32,6 +32,11 @@ class Position extends Model
     public function dog(): BelongsTo
     {
         return $this->belongsTo(Dog::class);
+    }
+
+    public function session(): BelongsTo
+    {
+        return $this->belongsTo(SearchSession::class, 'search_session_id');
     }
 
     public function hasFix(): bool
