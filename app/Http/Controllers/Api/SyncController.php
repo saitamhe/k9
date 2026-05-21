@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ForwardSyncBatchToRemote;
+use App\Jobs\ForwardWaypointPhotoToRemote;
 use App\Models\Dog;
 use App\Models\Position;
 use App\Models\SearchSession;
@@ -36,6 +38,7 @@ class SyncController extends Controller
     public function batch(Request $request): JsonResponse
     {
         $data = $request->validate([
+            'session_uuid'               => 'nullable|uuid',
             'positions'                  => 'array',
             'positions.*.node_id'        => 'required|integer|min:0|max:255',
             'positions.*.seq'            => 'required|integer|min:0',
@@ -62,7 +65,9 @@ class SyncController extends Controller
 
         $posSynced = [];
         $wpSynced  = [];
-        $activeSessionId = $this->currentSessionId();
+        $activeSessionId = !empty($data['session_uuid'])
+            ? $this->resolveOrPlaceholderSessionId($data['session_uuid'])
+            : $this->currentSessionId();
 
         DB::transaction(function () use ($data, $activeSessionId, &$posSynced, &$wpSynced) {
             // ---- Posiciones ----
@@ -122,6 +127,18 @@ class SyncController extends Controller
             }
         });
 
+        // Reenvio asincrono al servidor remoto. Solo si no es ya un reenvio.
+        if (!$request->hasHeader('X-Forwarded-From') && config('services.remote_ingest.base_url') !== '') {
+            $sessionUuid = $data['session_uuid'] ?? ($activeSessionId
+                ? SearchSession::whereKey($activeSessionId)->value('uuid')
+                : null);
+            ForwardSyncBatchToRemote::dispatch([
+                'session_uuid' => $sessionUuid,
+                'positions'    => $data['positions'] ?? [],
+                'waypoints'    => $data['waypoints'] ?? [],
+            ]);
+        }
+
         return response()->json([
             'ok'               => true,
             'positions_synced' => $posSynced,
@@ -151,6 +168,10 @@ class SyncController extends Controller
         $path = $request->file('photo')->store('waypoints', 'public');
         $wp->update(['photo_path' => $path]);
 
+        if (!$request->hasHeader('X-Forwarded-From') && config('services.remote_ingest.base_url') !== '') {
+            ForwardWaypointPhotoToRemote::dispatch($uuid, $path);
+        }
+
         return response()->json([
             'ok'         => true,
             'uuid'       => $uuid,
@@ -164,5 +185,21 @@ class SyncController extends Controller
         return Cache::remember('rastreo.active_session_id', 5, function () {
             return SearchSession::active()->latest('started_at')->value('id');
         });
+    }
+
+    private function resolveOrPlaceholderSessionId(string $uuid): int
+    {
+        $existing = SearchSession::where('uuid', $uuid)->value('id');
+        if ($existing) {
+            return $existing;
+        }
+        $s = SearchSession::create([
+            'uuid'       => $uuid,
+            'name'       => 'Operativo (sync pendiente)',
+            'started_at' => now(),
+            'status'     => SearchSession::STATUS_ACTIVE,
+        ]);
+        Cache::forget('rastreo.active_session_id');
+        return $s->id;
     }
 }

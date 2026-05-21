@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ForwardPositionToRemote;
 use App\Models\Dog;
 use App\Models\SearchSession;
 use Illuminate\Http\JsonResponse;
@@ -69,8 +70,14 @@ class PositionController extends Controller
             ['name' => "Perro #{$data['id']}", 'is_active' => true]
         );
 
+        // session_uuid puede venir cuando el paquete fue reenviado desde el local
+        // (asi el remoto preserva la asociacion); si no, usa la sesion activa local.
+        $sessionId = isset($data['session_uuid'])
+            ? $this->resolveOrPlaceholderSessionId($data['session_uuid'])
+            : $this->currentSessionId();
+
         $pos = $dog->positions()->create([
-            'search_session_id' => $this->currentSessionId(),
+            'search_session_id' => $sessionId,
             'seq'         => $data['seq']   ?? 0,
             'lat'         => $data['lat'],
             'lon'         => $data['lon'],
@@ -83,6 +90,18 @@ class PositionController extends Controller
             'snr'         => $data['snr']   ?? 0,
             'received_at' => now(),
         ]);
+
+        // Reenvio asincrono al servidor remoto (k9.heforge.cl). Si el request
+        // ya viene reenviado desde otro nodo, NO re-reenviamos para evitar loops.
+        if (!$request->hasHeader('X-Forwarded-From') && config('services.remote_ingest.base_url') !== '') {
+            // Inyectamos el session_uuid asi el remoto puede asociar la posicion
+            // a la misma sesion (los users/ids locales no existen alla, pero el
+            // uuid si — el job ForwardSessionToRemote lo sincroniza aparte).
+            if ($sessionId && !isset($data['session_uuid'])) {
+                $data['session_uuid'] = SearchSession::whereKey($sessionId)->value('uuid');
+            }
+            ForwardPositionToRemote::dispatch($data);
+        }
 
         return response()->json([
             'ok'          => true,
@@ -101,6 +120,29 @@ class PositionController extends Controller
         return Cache::remember('rastreo.active_session_id', 5, function () {
             return SearchSession::active()->latest('started_at')->value('id');
         });
+    }
+
+    /**
+     * Devuelve el id local de la sesion identificada por uuid. Si no existe
+     * todavia (el job de upsert puede llegar despues que el primer paquete),
+     * la crea como placeholder en estado 'active' con datos minimos — el
+     * ForwardSessionToRemote::handle() del local la completa al primer upsert.
+     */
+    private function resolveOrPlaceholderSessionId(string $uuid): int
+    {
+        $existing = SearchSession::where('uuid', $uuid)->value('id');
+        if ($existing) {
+            return $existing;
+        }
+
+        $s = SearchSession::create([
+            'uuid'       => $uuid,
+            'name'       => 'Operativo (sync pendiente)',
+            'started_at' => now(),
+            'status'     => SearchSession::STATUS_ACTIVE,
+        ]);
+        Cache::forget('rastreo.active_session_id');
+        return $s->id;
     }
 
     /**

@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    // Reenvio asincrono a la web "pública" (k9.heforge.cl).
+    // Si base_url esta vacia, no se dispatcha el job -> el server remoto no entra en loop.
+    'remote_ingest' => [
+        'base_url' => rtrim((string) env('REMOTE_INGEST_BASE_URL', ''), '/'),
+        'token'    => env('REMOTE_INGEST_TOKEN'),
+        'timeout'  => (int) env('REMOTE_INGEST_TIMEOUT', 8),
+    ],
+
 ];

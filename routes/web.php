@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\PositionController;
+use App\Http\Controllers\Api\SessionSyncController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\FieldController;
@@ -35,10 +36,14 @@ Route::middleware('auth')->prefix('api')->group(function () {
     Route::get('/dogs/{dog}/track', [PositionController::class, 'track']) ->name('api.dogs.track');
 });
 
-// --- API de ingesta (consumida por serial_to_api.py y la PWA del guia).
-//     Sin auth de sesion. ---
+// --- API de ingesta (consumida por serial_to_api.py, la PWA del guia y reenvios desde el local).
+//     Sin auth de sesion. En el server remoto se puede proteger con REMOTE_INGEST_TOKEN. ---
 Route::prefix('api')->group(function () {
     Route::post('/positions/ingest',       [PositionController::class, 'ingest'])    ->name('api.positions.ingest');
     Route::post('/sync/batch',             [SyncController::class, 'batch'])         ->name('api.sync.batch');
     Route::post('/waypoints/{uuid}/photo', [SyncController::class, 'waypointPhoto']) ->name('api.waypoints.photo');
+
+    // Sincronizacion de sesiones/notas desde el server local hacia el remoto.
+    Route::post('/sessions/upsert',         [SessionSyncController::class, 'upsert']) ->name('api.sessions.upsert');
+    Route::post('/sessions/{uuid}/notes',   [SessionSyncController::class, 'addNote'])->name('api.sessions.notes.add');
 });

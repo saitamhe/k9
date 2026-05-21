@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ForwardSessionNoteToRemote;
+use App\Jobs\ForwardSessionToRemote;
 use App\Models\SearchSession;
 use App\Models\SessionNote;
 use Illuminate\Http\Request;
@@ -69,6 +71,10 @@ class SearchSessionController extends Controller
         ]);
         Cache::forget('rastreo.active_session_id');
 
+        if (config('services.remote_ingest.base_url') !== '') {
+            ForwardSessionToRemote::dispatch($session->id);
+        }
+
         return redirect()->route('map')->with('flash', "Operativo iniciado: {$session->name}");
     }
 
@@ -117,6 +123,10 @@ class SearchSessionController extends Controller
         ]);
         Cache::forget('rastreo.active_session_id');
 
+        if (config('services.remote_ingest.base_url') !== '') {
+            ForwardSessionToRemote::dispatch($session->id);
+        }
+
         return redirect()->route('sessions.show', $session)
             ->with('flash', 'Operativo cerrado.');
     }
@@ -133,13 +143,17 @@ class SearchSessionController extends Controller
             'lon'  => 'nullable|numeric|between:-180,180',
         ]);
 
-        SessionNote::create([
+        $note = SessionNote::create([
             'search_session_id' => $session->id,
             'user_id'           => $request->user()->id,
             'body'              => $data['body'],
             'lat'               => $data['lat'] ?? null,
             'lon'               => $data['lon'] ?? null,
         ]);
+
+        if (config('services.remote_ingest.base_url') !== '') {
+            ForwardSessionNoteToRemote::dispatch($note->id);
+        }
 
         if ($request->wantsJson()) {
             return response()->json(['ok' => true]);

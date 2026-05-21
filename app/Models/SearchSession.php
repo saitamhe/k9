@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class SearchSession extends Model
 {
@@ -16,10 +17,26 @@ class SearchSession extends Model
     public const STATUS_CLOSED = 'closed';
 
     protected $fillable = [
-        'name', 'started_at', 'ended_at',
+        'uuid', 'name', 'started_at', 'ended_at',
         'base_lat', 'base_lon', 'base_name',
         'description', 'status', 'created_by',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $session) {
+            if (empty($session->uuid)) {
+                $session->uuid = (string) Str::uuid();
+            }
+        });
+    }
+
+    public function getRouteKeyName(): string
+    {
+        // Permite seguir resolviendo /sessions/{session} por id en rutas web,
+        // pero las rutas API usan ->where('uuid', ...) explicitamente.
+        return 'id';
+    }
 
     protected $casts = [
         'started_at' => 'datetime',

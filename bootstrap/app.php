@@ -11,11 +11,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Eximir endpoints API de CSRF — clientes son helper Python y la PWA del guia.
+        // Eximir endpoints API de CSRF — clientes son helper Python, la PWA del guia
+        // y los jobs de reenvio entre instancias (local <-> remoto).
         $middleware->validateCsrfTokens(except: [
             'api/positions/ingest',
             'api/sync/batch',
             'api/waypoints/*/photo',
+            'api/sessions/upsert',
+            'api/sessions/*/notes',
         ]);
 
         // Donde redirigir cuando no hay sesion autenticada.
