@@ -70,14 +70,15 @@
                 <div class="flash" style="margin-top:12px;">{{ session('flash') }}</div>
             @endif
 
-            @if ($session->isActive() && auth()->user()->isAdmin())
-                <div style="margin-top:12px;">
-                    <form method="POST" action="{{ route('sessions.close', $session) }}" style="display:inline;" onsubmit="return confirm('¿Cerrar operativo?');">
+            <div style="margin-top:12px;">
+                <a class="btn btn-primary" href="{{ route('sessions.gpx', $session) }}">Exportar GPX</a>
+                @if ($session->isActive() && auth()->user()->isAdmin())
+                    <form method="POST" action="{{ route('sessions.close', $session) }}" style="display:inline;margin-left:4px;" onsubmit="return confirm('¿Cerrar operativo?');">
                         @csrf
                         <button type="submit" class="btn btn-danger">Cerrar operativo</button>
                     </form>
-                </div>
-            @endif
+                @endif
+            </div>
 
             <h2>Tracks ({{ $tracks->count() }} perros)</h2>
             @forelse ($tracks as $t)

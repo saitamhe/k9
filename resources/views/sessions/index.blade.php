@@ -78,6 +78,7 @@
                 </div>
                 <div class="actions" style="display:flex;align-items:center;">
                     <a href="{{ route('sessions.show', $s) }}">Detalle</a>
+                    <a href="{{ route('sessions.gpx', $s) }}">GPX</a>
                 </div>
             </div>
         @empty

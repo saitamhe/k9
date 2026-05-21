@@ -24,6 +24,7 @@ Route::middleware('auth')->group(function () {
     Route::get ('/sessions/create',           [SearchSessionController::class, 'create'])->name('sessions.create');
     Route::post('/sessions',                  [SearchSessionController::class, 'store']) ->name('sessions.store');
     Route::get ('/sessions/{session}',        [SearchSessionController::class, 'show'])  ->name('sessions.show');
+    Route::get ('/sessions/{session}/gpx',    [SearchSessionController::class, 'exportGpx'])->name('sessions.gpx');
     Route::post('/sessions/{session}/close',  [SearchSessionController::class, 'close']) ->name('sessions.close');
     Route::post('/sessions/{session}/notes',  [SearchSessionController::class, 'addNote'])->name('sessions.notes.add');
 });

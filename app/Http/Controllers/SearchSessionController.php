@@ -6,6 +6,8 @@ use App\Models\SearchSession;
 use App\Models\SessionNote;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SearchSessionController extends Controller
 {
@@ -143,6 +145,64 @@ class SearchSessionController extends Controller
             return response()->json(['ok' => true]);
         }
         return back()->with('flash', 'Nota guardada.');
+    }
+
+    /**
+     * Export GPX de toda la sesion: 1 track por perro + waypoints.
+     */
+    public function exportGpx(SearchSession $session): StreamedResponse
+    {
+        $tracks = $session->positions()
+            ->with('dog:id,name,node_id')
+            ->orderBy('dog_id')->orderBy('received_at')
+            ->get();
+
+        $waypoints = $session->waypoints()->get();
+        $byDog = $tracks->groupBy('dog_id');
+
+        $filename = 'sesion-' . $session->id . '-' . preg_replace('/[^a-z0-9]+/i', '-', strtolower($session->name)) . '.gpx';
+
+        return response()->streamDownload(function () use ($session, $byDog, $waypoints) {
+            echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+            echo '<gpx version="1.1" creator="Rastreo K9 SAR" xmlns="http://www.topografix.com/GPX/1/1">' . "\n";
+            echo '  <metadata>' . "\n";
+            echo '    <name>' . e($session->name) . '</name>' . "\n";
+            echo '    <time>' . $session->started_at->toIso8601String() . '</time>' . "\n";
+            if ($session->description) {
+                echo '    <desc>' . e($session->description) . '</desc>' . "\n";
+            }
+            echo '  </metadata>' . "\n";
+
+            foreach ($waypoints as $wp) {
+                echo '  <wpt lat="' . $wp->lat . '" lon="' . $wp->lon . '">' . "\n";
+                echo '    <time>' . $wp->recorded_at->toIso8601String() . '</time>' . "\n";
+                echo '    <name>' . e($wp->type) . '</name>' . "\n";
+                if ($wp->note) {
+                    echo '    <desc>' . e($wp->note) . '</desc>' . "\n";
+                }
+                echo '  </wpt>' . "\n";
+            }
+
+            foreach ($byDog as $dogId => $points) {
+                $dog = $points->first()->dog;
+                $dogName = $dog ? $dog->name : "Perro #{$dogId}";
+                echo '  <trk>' . "\n";
+                echo '    <name>' . e($dogName) . '</name>' . "\n";
+                echo '    <trkseg>' . "\n";
+                foreach ($points as $p) {
+                    echo '      <trkpt lat="' . $p->lat . '" lon="' . $p->lon . '">' . "\n";
+                    echo '        <ele>' . (int) $p->alt_m . '</ele>' . "\n";
+                    echo '        <time>' . $p->received_at->toIso8601String() . '</time>' . "\n";
+                    echo '      </trkpt>' . "\n";
+                }
+                echo '    </trkseg>' . "\n";
+                echo '  </trk>' . "\n";
+            }
+
+            echo '</gpx>' . "\n";
+        }, $filename, [
+            'Content-Type' => 'application/gpx+xml',
+        ]);
     }
 
     private function authorizeAdmin(): void
