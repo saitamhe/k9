@@ -156,7 +156,6 @@
             <nav class="topbar-nav" id="topbar-nav">
                 <a href="{{ route('map') }}" class="{{ request()->routeIs('map') ? 'active' : '' }}">🗺 Mapa</a>
                 <a href="{{ route('sessions.index') }}" class="{{ request()->routeIs('sessions.*') ? 'active' : '' }}">📋 Operativos</a>
-                <a href="{{ route('field') }}" class="{{ request()->routeIs('field') ? 'active' : '' }}">📡 Campo</a>
             </nav>
             @auth
                 <div class="topbar-user">
