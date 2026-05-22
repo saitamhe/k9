@@ -31,6 +31,17 @@
         margin-bottom: 16px; font-size: 13px; border-radius: 3px; color: #fca5a5;
     }
     .hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .loc-actions {
+        display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .btn-loc {
+        flex: 1; min-width: 0; padding: 10px 12px;
+        background: #1f2937; border: 1px solid #374151;
+        color: var(--text); font-size: 13px; cursor: pointer;
+        border-radius: 4px; font-family: inherit; text-align: center;
+    }
+    .btn-loc:hover { background: #273548; }
+    .btn-loc[disabled] { opacity: 0.5; cursor: wait; }
 
     @media (max-width: 600px) {
         .wrap { margin: 16px 12px; padding: 16px; }
@@ -61,6 +72,12 @@
         <label for="base_name">Base de operaciones</label>
         <input id="base_name" type="text" name="base_name" maxlength="160" value="{{ old('base_name') }}">
 
+        <div class="loc-actions">
+            <button type="button" class="btn btn-loc" id="btn-geo">📍 Usar mi ubicación actual</button>
+            <button type="button" class="btn btn-loc" id="btn-from-map">🗺 Usar la base del mapa</button>
+        </div>
+        <div id="geo-msg" class="hint" style="margin-top:6px;"></div>
+
         <div class="row">
             <div>
                 <label for="base_lat">Lat</label>
@@ -78,4 +95,61 @@
         </div>
     </form>
 </div>
+@endsection
+
+@section('scripts')
+<script>
+(function () {
+    const $lat  = document.getElementById('base_lat');
+    const $lon  = document.getElementById('base_lon');
+    const $name = document.getElementById('base_name');
+    const $msg  = document.getElementById('geo-msg');
+    const $geo  = document.getElementById('btn-geo');
+    const $map  = document.getElementById('btn-from-map');
+
+    function setMsg(text, color) {
+        $msg.style.color = color || 'var(--text-muted)';
+        $msg.textContent = text || '';
+    }
+
+    $geo.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+            setMsg('Tu navegador no soporta geolocalización.', '#fca5a5');
+            return;
+        }
+        $geo.disabled = true;
+        setMsg('Obteniendo ubicación del GPS...');
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                $lat.value = pos.coords.latitude.toFixed(6);
+                $lon.value = pos.coords.longitude.toFixed(6);
+                if (!$name.value) $name.value = 'Base (mi ubicación)';
+                setMsg('Ubicación fijada: ±' + Math.round(pos.coords.accuracy) + ' m de precisión.', '#a7f3d0');
+                $geo.disabled = false;
+            },
+            (err) => {
+                setMsg('No se pudo obtener: ' + err.message, '#fca5a5');
+                $geo.disabled = false;
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
+    });
+
+    $map.addEventListener('click', () => {
+        try {
+            const saved = JSON.parse(localStorage.getItem('rastreo.base'));
+            if (!saved || saved.lat == null) {
+                setMsg('No hay una base guardada en el mapa todavía.', '#fca5a5');
+                return;
+            }
+            $lat.value = (+saved.lat).toFixed(6);
+            $lon.value = (+saved.lon).toFixed(6);
+            if (!$name.value && saved.name) $name.value = saved.name;
+            setMsg('Tomada de la base actual del mapa.', '#a7f3d0');
+        } catch (e) {
+            setMsg('No se pudo leer la base del mapa.', '#fca5a5');
+        }
+    });
+})();
+</script>
 @endsection

@@ -108,7 +108,30 @@
         }
     }
 
-    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
+    .dog-marker {
+        width: 38px; height: 38px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        font-size: 20px; line-height: 1;
+    }
+    .dog-marker.moving { animation: dogpulse 1s infinite; }
+    @keyframes dogpulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+
+    /* leyenda de velocidad */
+    .speed-legend { font-size: 11px; color: #aaa; line-height: 1.8; }
+    .speed-legend > div { display: flex; align-items: center; gap: 6px; }
+    .speed-legend .sw {
+        display: inline-block; width: 22px; height: 4px; border-radius: 2px;
+    }
+    .speed-legend em { color: #777; font-style: normal; margin-left: 2px; }
+
+    /* aviso geo en mobile */
+    #geo-hint {
+        position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+        z-index: 600; background: rgba(0,0,0,0.82); color: #fff;
+        padding: 8px 14px; border-radius: 4px; font-size: 12px;
+        display: none; max-width: 92vw; text-align: center;
+    }
 @endsection
 
 @section('content')
@@ -185,6 +208,15 @@
         <h2>Perros activos</h2>
         <div id="dog-list"><em style="color:#666;font-size:12px;">Esperando datos...</em></div>
 
+        <h2>Velocidad (traza)</h2>
+        <div class="speed-legend">
+            <div><span class="sw" style="background:#6b7280"></span>parado <em>&lt; 0.5 m/s</em></div>
+            <div><span class="sw" style="background:#10b981"></span>caminando <em>0.5–1.5</em></div>
+            <div><span class="sw" style="background:#facc15"></span>trote <em>1.5–3.5</em></div>
+            <div><span class="sw" style="background:#f97316"></span>corriendo <em>3.5–6</em></div>
+            <div><span class="sw" style="background:#ef4444"></span>rápido <em>&gt; 6 m/s</em></div>
+        </div>
+
         <h2>Leyenda</h2>
         <div style="font-size:11px;color:#aaa;line-height:1.7;">
             <span class="badge badge-fix">FIX</span> GPS con fix válido<br>
@@ -199,6 +231,7 @@
     <div id="map-pane">
         <button id="btn-toggle-sidebar" type="button" aria-label="Mostrar panel">📊 Operativo</button>
         <div id="map"></div>
+        <div id="geo-hint">📍 Centrando en tu ubicación actual...</div>
         <div id="status-bar">— sin conexión —</div>
         <div id="mode-banner">Toca el mapa para fijar la base. ESC para cancelar.</div>
     </div>
@@ -317,13 +350,18 @@ const dogs = {};
 let firstCenterDone = false;
 
 function dogIcon(color, isMoving) {
-    const html = `<div style="
-        width: 16px; height: 16px; border-radius: 50%;
-        background: ${color}; border: 3px solid white;
-        box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
-        ${isMoving ? 'animation: pulse 1s infinite;' : ''}
-    "></div>`;
-    return L.divIcon({ html, className: '', iconSize: [22, 22], iconAnchor: [11, 11] });
+    const cls = 'dog-marker' + (isMoving ? ' moving' : '');
+    const html = `<div class="${cls}" style="background:${color};">🐕</div>`;
+    return L.divIcon({ html, className: '', iconSize: [38, 38], iconAnchor: [19, 19] });
+}
+
+// m/s → color (gris parado, verde caminar, amarillo trote, naranja corre, rojo rápido)
+function speedToColor(spd) {
+    if (spd == null || isNaN(spd) || spd < 0.5) return '#6b7280';
+    if (spd < 1.5) return '#10b981';
+    if (spd < 3.5) return '#facc15';
+    if (spd < 6.0) return '#f97316';
+    return '#ef4444';
 }
 
 function distMeters(lat1, lon1, lat2, lon2) {
@@ -349,13 +387,35 @@ function bearingToCardinal(b) {
     return dirs[Math.round(b / 45) % 8];
 }
 
+// Dibuja la traza de un perro como una colección de segmentos coloreados por
+// velocidad. Cada segmento es una L.polyline de 2 puntos. Guardamos los
+// segmentos y el último punto en dogs[id] para poder ir extendiendo en vivo.
+function clearTrack(dog) {
+    const d = dogs[dog.id];
+    if (!d) return;
+    if (d.segments) d.segments.forEach(s => map.removeLayer(s));
+    d.segments = [];
+    d.lastPoint = null;
+}
+
+function appendSegment(dogId, a, b, spd) {
+    const color = speedToColor(spd);
+    const seg = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {
+        color, weight: 4, opacity: 0.85,
+    }).addTo(map);
+    dogs[dogId].segments.push(seg);
+}
+
 async function loadTrack(dog) {
     try {
         const r = await fetch(`/api/dogs/${dog.id}/track?limit=${TRACK_LIMIT}`);
         const data = await r.json();
-        const latlngs = data.points.filter(p => p.lat !== 0 || p.lon !== 0).map(p => [p.lat, p.lon]);
-        if (dogs[dog.id].polyline) map.removeLayer(dogs[dog.id].polyline);
-        dogs[dog.id].polyline = L.polyline(latlngs, { color: dog.color, weight: 3, opacity: 0.7 }).addTo(map);
+        const valid = data.points.filter(p => p.lat !== 0 || p.lon !== 0);
+        clearTrack(dog);
+        for (let i = 1; i < valid.length; i++) {
+            appendSegment(dog.id, valid[i-1], valid[i], valid[i].spd);
+        }
+        dogs[dog.id].lastPoint = valid.length ? valid[valid.length - 1] : null;
     } catch (e) { console.warn('track load fail', e); }
 }
 
@@ -422,6 +482,7 @@ async function poll() {
                 dogs[d.id] = {
                     id: d.id, color: d.color, name: d.name,
                     marker: L.marker(latlng, { icon: dogIcon(d.color, p.is_moving) }).addTo(map),
+                    segments: [], lastPoint: null,
                 };
                 dogs[d.id].marker.bindPopup(`<b>${d.name}</b><br>${d.handler || ''}`);
                 loadTrack(d);
@@ -432,7 +493,10 @@ async function poll() {
             } else {
                 dogs[d.id].marker.setLatLng(latlng);
                 dogs[d.id].marker.setIcon(dogIcon(d.color, p.is_moving));
-                if (dogs[d.id].polyline) dogs[d.id].polyline.addLatLng(latlng);
+                const last = dogs[d.id].lastPoint;
+                const cur  = { lat: p.lat, lon: p.lon, spd: p.speed_mps };
+                if (last) appendSegment(d.id, last, cur, p.speed_mps);
+                dogs[d.id].lastPoint = cur;
             }
             dogs[d.id].lastReceived = p.received_at;
         }
@@ -444,5 +508,32 @@ async function poll() {
 
 setInterval(poll, POLL_MS);
 poll();
+
+// Si el usuario no ha fijado base manualmente, intentamos centrar en su
+// ubicación actual al cargar. La marcamos como base local con un nombre
+// "Base (mi ubicación)" para que quede claro que es la auto-detectada.
+// No pisamos una base elegida antes — sólo aplica si no hay rastreo.base en LS.
+(function autoGeoBase() {
+    if (localStorage.getItem('rastreo.base')) return;
+    if (!navigator.geolocation) return;
+    const hint = document.getElementById('geo-hint');
+    if (hint) hint.style.display = 'block';
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            base.lat = pos.coords.latitude;
+            base.lon = pos.coords.longitude;
+            base.name = 'Base (mi ubicación)';
+            saveBase();
+            refreshBaseUI();
+            if (!firstCenterDone) {
+                map.setView([base.lat, base.lon], 16);
+                firstCenterDone = true;
+            }
+            if (hint) hint.style.display = 'none';
+        },
+        () => { if (hint) hint.style.display = 'none'; },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+})();
 </script>
 @endsection

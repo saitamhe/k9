@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0a0a0a">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="K9 SAR">
     <title>@yield('title', 'Rastreo K9 SAR')</title>
@@ -27,13 +28,15 @@
             --text-muted: #888;
             --accent: #06b6d4;
             --accent-fg: #000;
-            --topbar-h: 52px;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --topbar-h: calc(56px + var(--safe-top));
         }
         * { box-sizing: border-box; }
         html, body {
             margin: 0; padding: 0; background: var(--bg); color: var(--text);
             font-family: -apple-system, Segoe UI, Roboto, sans-serif;
             -webkit-text-size-adjust: 100%;
+            overscroll-behavior-y: none;
         }
         body { min-height: 100vh; }
         body.fixed-viewport {
@@ -44,16 +47,18 @@
         .topbar {
             position: sticky; top: 0; z-index: 1500;
             background: #111; border-bottom: 1px solid var(--border);
-            height: var(--topbar-h); display: flex; align-items: center;
-            padding: 0 12px; padding-top: env(safe-area-inset-top);
+            min-height: var(--topbar-h);
+            padding-top: var(--safe-top);
+            display: flex; align-items: center;
+            padding-left: 12px; padding-right: 12px;
             gap: 8px;
         }
         .topbar-brand {
             font-weight: 700; color: var(--text); text-decoration: none; font-size: 14px;
             letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;
-            white-space: nowrap;
+            white-space: nowrap; flex-shrink: 0;
         }
-        .topbar-brand .logo { width: 26px; height: 26px; flex-shrink: 0; }
+        .topbar-brand .logo { width: 28px; height: 28px; flex-shrink: 0; }
         .topbar-brand .name { color: var(--accent); }
 
         .topbar-nav {
@@ -65,28 +70,35 @@
         }
         .topbar-nav a:hover { background: #222; }
         .topbar-nav a.active { background: var(--panel-2); color: var(--accent); }
-        .topbar-spacer { flex: 1; }
 
         .topbar-user {
-            display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 12px;
+            display: flex; align-items: center; gap: 10px;
+            color: var(--text-muted); font-size: 12px;
+            flex-shrink: 0;
         }
         .topbar-user form { margin: 0; }
         .topbar-user .who { white-space: nowrap; }
         .topbar-user .who b { color: var(--text); }
         .topbar-user .logout {
-            background: none; border: 1px solid #333; color: var(--accent);
-            padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
-            font-family: inherit;
+            background: #1f2937; border: 1px solid #374151; color: var(--accent);
+            padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+            font-family: inherit; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 6px;
+            min-height: 36px;
         }
-        .topbar-user .logout:hover { background: #222; }
+        .topbar-user .logout:hover { background: #273548; }
+        .topbar-user .logout-icon { font-size: 14px; }
+        .topbar-user .logout-text { display: inline; }
 
         .topbar-toggle {
-            background: none; border: 1px solid #333; color: var(--text);
-            width: 38px; height: 38px; border-radius: 4px; cursor: pointer; display: none;
+            background: #1f2937; border: 1px solid #374151; color: var(--text);
+            width: 40px; height: 40px; border-radius: 6px; cursor: pointer; display: none;
             font-size: 18px; line-height: 1; align-items: center; justify-content: center;
+            flex-shrink: 0;
         }
 
         @media (max-width: 820px) {
+            .topbar { padding-left: 10px; padding-right: 10px; gap: 6px; }
             .topbar-toggle { display: inline-flex; }
             .topbar-nav {
                 position: fixed; top: var(--topbar-h); left: 0; right: 0;
@@ -101,12 +113,15 @@
                 padding: 14px 18px; font-size: 15px; border-radius: 0;
                 border-bottom: 1px solid #1c1c1c;
             }
-            .topbar-spacer { display: none; }
-            .topbar-user {
-                padding: 12px 18px; flex-direction: row; align-items: center;
-                justify-content: space-between; gap: 10px; flex-wrap: wrap;
-                border-top: 1px solid #1c1c1c;
+            .topbar-user .who { display: none; }
+            .topbar-user .logout-text { display: none; }
+            .topbar-user .logout {
+                padding: 8px 10px; min-width: 40px; justify-content: center;
             }
+        }
+
+        @media (max-width: 380px) {
+            .topbar-brand .name { display: none; }
         }
 
         .nav-backdrop {
@@ -138,23 +153,23 @@
                 </svg>
                 <span class="name">K9 SAR</span>
             </a>
-            <div class="topbar-spacer"></div>
-            <button class="topbar-toggle" id="topbar-toggle" aria-label="Abrir menú" aria-expanded="false">☰</button>
             <nav class="topbar-nav" id="topbar-nav">
                 <a href="{{ route('map') }}" class="{{ request()->routeIs('map') ? 'active' : '' }}">🗺 Mapa</a>
                 <a href="{{ route('sessions.index') }}" class="{{ request()->routeIs('sessions.*') ? 'active' : '' }}">📋 Operativos</a>
                 <a href="{{ route('field') }}" class="{{ request()->routeIs('field') ? 'active' : '' }}">📡 Campo</a>
-                @auth
-                    <div class="topbar-spacer"></div>
-                    <div class="topbar-user">
-                        <span class="who"><b>{{ auth()->user()->name }}</b> · {{ auth()->user()->role }}</span>
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button class="logout" type="submit">Salir</button>
-                        </form>
-                    </div>
-                @endauth
             </nav>
+            @auth
+                <div class="topbar-user">
+                    <span class="who"><b>{{ auth()->user()->name }}</b> · {{ auth()->user()->role }}</span>
+                    <form method="POST" action="{{ route('logout') }}" id="logout-form">
+                        @csrf
+                        <button class="logout" type="submit" aria-label="Cerrar sesión">
+                            <span class="logout-icon">⎋</span><span class="logout-text">Salir</span>
+                        </button>
+                    </form>
+                </div>
+            @endauth
+            <button class="topbar-toggle" id="topbar-toggle" aria-label="Abrir menú" aria-expanded="false">☰</button>
         </header>
         <div class="nav-backdrop" id="nav-backdrop"></div>
     @endunless
@@ -163,9 +178,10 @@
 
     <script>
         (function () {
-            const toggle  = document.getElementById('topbar-toggle');
-            const nav     = document.getElementById('topbar-nav');
+            const toggle   = document.getElementById('topbar-toggle');
+            const nav      = document.getElementById('topbar-nav');
             const backdrop = document.getElementById('nav-backdrop');
+            const logoutForm = document.getElementById('logout-form');
 
             function closeNav() {
                 if (!nav) return;
@@ -189,6 +205,26 @@
                 });
                 document.addEventListener('keydown', (e) => {
                     if (e.key === 'Escape') closeNav();
+                });
+            }
+
+            // Antes de hacer logout: limpiar caches del SW para que la siguiente
+            // navegación no muestre la versión vieja autenticada de '/'.
+            if (logoutForm) {
+                logoutForm.addEventListener('submit', async (e) => {
+                    if (!window.caches) return; // browser sin Cache Storage: dejar pasar
+                    e.preventDefault();
+                    try {
+                        const names = await caches.keys();
+                        await Promise.all(names.map((n) => caches.delete(n)));
+                        if (navigator.serviceWorker?.controller) {
+                            navigator.serviceWorker.controller.postMessage({ type: 'logout' });
+                        }
+                    } catch (err) {
+                        console.warn('cache cleanup failed', err);
+                    } finally {
+                        logoutForm.submit();
+                    }
                 });
             }
 

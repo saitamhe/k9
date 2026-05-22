@@ -3,16 +3,21 @@
  * Estrategia:
  *   - Tiles de OSM:   stale-while-revalidate.
  *   - Assets de CDN (unpkg, leaflet):  cache-first.
- *   - Mismo origen no /api ni /field:   network-first con fallback a cache (HTML, CSS, JS, fuentes).
+ *   - Mismo origen no /api ni /field:  network-first con fallback a cache (HTML, CSS, JS).
  *   - /api/*: nunca cacheamos (datos vivos, auth-sensible).
  *   - /field/*: no interceptamos; tiene su propio SW con scope /field/.
  *   - /login y /logout: red directa.
+ *
+ * Importante: NUNCA guardamos en cache responses redirected ni con type
+ * 'opaqueredirect', porque después de un logout el server hace 302 a /login
+ * y eso contaminaría el cache de '/'.
+ *
+ * El client (layouts/app.blade.php) limpia caches al hacer submit del logout.
  */
 
-const CACHE_NAME = 'k9-sar-v1';
+const CACHE_NAME = 'k9-sar-v2';
 
 const APP_SHELL = [
-    '/',
     '/manifest.webmanifest',
     '/icons/icon.svg',
     '/icons/icon-maskable.svg',
@@ -42,6 +47,17 @@ self.addEventListener('activate', (event) => {
         )
     );
     self.clients.claim();
+});
+
+self.addEventListener('message', (event) => {
+    const data = event.data || {};
+    if (data.type === 'logout' || data.type === 'clear-caches') {
+        event.waitUntil(
+            caches.keys().then((names) =>
+                Promise.all(names.filter((n) => n.startsWith('k9-sar-')).map((n) => caches.delete(n)))
+            )
+        );
+    }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -76,10 +92,14 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
+function isCacheable(res) {
+    return res && res.ok && !res.redirected && res.type !== 'opaqueredirect';
+}
+
 async function networkFirst(req) {
     try {
         const fresh = await fetch(req);
-        if (fresh && fresh.ok) {
+        if (isCacheable(fresh)) {
             const cache = await caches.open(CACHE_NAME);
             cache.put(req, fresh.clone());
         }
@@ -87,11 +107,6 @@ async function networkFirst(req) {
     } catch (e) {
         const cached = await caches.match(req);
         if (cached) return cached;
-        // Si pidieron HTML y no hay cache, intentamos servir el shell '/'.
-        if (req.headers.get('accept')?.includes('text/html')) {
-            const fallback = await caches.match('/');
-            if (fallback) return fallback;
-        }
         return new Response('offline', { status: 503, statusText: 'Offline' });
     }
 }
@@ -101,7 +116,7 @@ async function cacheFirst(req) {
     if (cached) return cached;
     try {
         const fresh = await fetch(req);
-        if (fresh && fresh.ok) {
+        if (isCacheable(fresh)) {
             const cache = await caches.open(CACHE_NAME);
             cache.put(req, fresh.clone());
         }
@@ -115,7 +130,7 @@ async function staleWhileRevalidate(req) {
     const cache = await caches.open(CACHE_NAME);
     const cached = await cache.match(req);
     const networkPromise = fetch(req).then((res) => {
-        if (res && res.ok) cache.put(req, res.clone());
+        if (isCacheable(res)) cache.put(req, res.clone());
         return res;
     }).catch(() => null);
     return cached || networkPromise || new Response('offline', { status: 503 });
